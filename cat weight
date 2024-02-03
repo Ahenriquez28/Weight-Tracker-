@@ -1,0 +1,150 @@
+import sqlite3
+
+
+class Cat:
+    def __init__(self, age, breed, weight, activity_level):
+        # Initialize the cat with age, breed, weight, and activity level
+        self.age = age
+        self.breed = breed
+        self.weight = weight
+        self.activity_level = activity_level
+
+    # Calculate the cat's daily calories
+    def calculate_daily_calories(self):
+        if self.breed == "indoor":
+            bmr = 70 * self.weight ** 0.75
+        elif self.breed == "outdoor":
+            bmr = 100 * self.weight ** 0.75
+        else: 
+            bmr = 85 * self.weight ** 0.75
+
+        # Adjusting the BMR level depending on how active the cat is 
+        if self.activity_level == "low":
+            bmr *= 1.2
+        elif self.activity_level == "moderate":
+            bmr *= 1.4
+        elif self.activity_level == "active": 
+            bmr *= 1.6
+
+        # Adjusted the BMR level depending on the cat's age
+        if self.age < 1:
+            bmr *= 1.2
+        elif 1 <= self.age < 7:
+            bmr *= 1
+        else:
+            bmr *= 0.8
+
+        return bmr
+
+#asking the user for info on the cats diet
+class Diet:
+    def __init__(self, breakfast_cal, lunch_cal, dinner_cal, exercise, metabolism):
+        self.breakfast_cal = breakfast_cal
+        self.lunch_cal = lunch_cal
+        self.dinner_cal = dinner_cal
+        self.exercise = exercise
+        self.bmr = metabolism
+        
+    def calorie_deficit(self):
+        deficit = self.bmr + self.exercise - (self.breakfast_cal + self.lunch_cal + self.dinner_cal)
+        return deficit
+
+#Retracting previous profile or creating a new one
+def view_or_create_profile():
+    while True:
+        option = input("Would you like to view a previous cat profile or create a new one? (view/create) ").lower()
+        if option == "view":
+            cursor.execute("SELECT * FROM cat_profiles ORDER BY id DESC LIMIT 1")
+            count = cursor.fetchone()[0]
+
+            #Checking for previous profiles
+            if count == 0:
+                print("No previous cat profiles found.")
+            else:
+                print("Previous Cat Profiles: ")
+
+                #Recieving last 3 profiles from the database
+                cursor.execute("SELECT * FROM cat_profiles ORDER BY id DESC LIMIT 3")
+                profiles = cursor.fetchall()
+
+        #Displaying profiles
+            for profile in profiles:
+                print("Previous Cat Profile: ")
+                print("Age:", profile[1])
+                print("Breed:", profile[2])
+                print("Weight:", profile[3])
+                print("Activity Level:", profile[4])
+            decision = input("Would you like to create a new profile? (yes/no)").lower()
+            if decision == "no":
+                break
+            #Creating new profiles
+        elif option == "create":
+            age = int(input("Enter how old your cat is: "))
+            breed = input("Is your cat Indoor, outdoor, or other? ")
+            weight = float(input("Enter how much your cat weighs in pounds: "))
+            activity_level = input("Enter your cat's activity level (low, moderate, active): ")
+
+            insert_query = """
+            INSERT INTO cat_profiles (age, breed, weight, activity_level)
+            VALUES (?, ?, ?, ?)
+            """
+            cursor.execute(insert_query, (age, breed, weight, activity_level))
+            connection.commit()
+            print("Cat profile created successfully!")
+            break
+        elif option == "exit":
+            break
+        else:
+            print("Invalid Option")
+
+        #Do they want to continue or exit 
+        decision = input("Would you like to continue? (create or exit)")
+        if decision == "exit":
+            break
+             
+
+
+# Creating a database for each of the user's cats
+connection = sqlite3.connect('cat_profiles.db')
+cursor = connection.cursor()
+
+create_table_query = """
+CREATE TABLE IF NOT EXISTS cat_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    age INTEGER,
+    breed TEXT,
+    weight REAL,
+    activity_level TEXT
+);
+"""
+cursor.execute(create_table_query)
+
+view_or_create_profile()
+
+# Receiving the last inserted cat profile from the database
+cursor.execute("SELECT * FROM cat_profiles ORDER BY id DESC LIMIT 1")
+profile = cursor.fetchone()
+
+# Making values for the cat and the BMR
+cat = Cat(profile[1], profile[2], profile[3], profile[4])
+bmr = cat.calculate_daily_calories()
+
+# Getting input for diet and exercise
+breakfast_cal = int(input("How many calories did your cat have for breakfast? "))
+lunch_cal = int(input("How many calories did your cat have for lunch? "))                    
+dinner_cal = int(input("How many calories did your cat have for dinner? "))         
+exercise = int(input("How many calories did your cat burn through exercise? "))
+
+fitness = Diet(breakfast_cal, lunch_cal, dinner_cal, exercise, bmr)
+weekly_deficit = 7 * fitness.calorie_deficit()
+
+# Telling the user the cat's weight situation
+if weekly_deficit > 0:
+    print(f"Your cat will lose around {weekly_deficit / 3500} lbs. per week")
+elif weekly_deficit == 0:
+    print("Your cat's weight will stay the same")
+else:
+    print(f"Your cat will gain around {-1 * weekly_deficit / 3500} lbs. per week at this rate")
+
+# Close database connection
+connection.close()
